@@ -1,0 +1,31 @@
+{
+  "name": "filis-npd-platform",
+  "version": "1.0.0",
+  "description": "Fi-Lis NPD Platform - Local Development",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend",
+    "admin",
+    "shared"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "db:init": "cd backend && npm run db:init",
+    "db:seed": "cd backend && npm run db:seed",
+    "data:import": "cd backend && npm run data:import"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=9.0.0"
+  },
+  "dependencies": {
+    "deps": "^1.0.0"
+  }
+}
