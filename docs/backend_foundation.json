@@ -1,0 +1,1025 @@
+// backend/package.json
+{
+  "name": "@filis/backend",
+  "version": "1.0.0",
+  "description": "Fi-Lis NPD Platform Backend API",
+  "main": "dist/server.js",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --clear-screen=false src/server.ts",
+    "build": "tsc && tsc-alias",
+    "start": "node dist/server.js",
+    "db:init": "tsx src/scripts/init-database.ts",
+    "db:migrate": "tsx src/scripts/migrate-database.ts",
+    "db:seed": "tsx src/scripts/seed-database.ts",
+    "data:import": "tsx src/scripts/data-migration.ts",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "pg": "^8.11.3",
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0",
+    "compression": "^1.7.4",
+    "morgan": "^1.10.0",
+    "express-rate-limit": "^7.1.5",
+    "express-validator": "^7.0.1",
+    "express-async-errors": "^3.1.1",
+    "dotenv": "^16.3.1",
+    "zod": "^3.22.4",
+    "bcrypt": "^5.1.1",
+    "jsonwebtoken": "^9.0.2",
+    "jose": "^5.1.3",
+    "crypto-js": "^4.2.0",
+    "nodemailer": "^6.9.7",
+    "twilio": "^4.19.0",
+    "axios": "^1.6.2",
+    "redis": "^4.6.10",
+    "bull": "^4.12.0",
+    "@bull-board/api": "^5.10.2",
+    "@bull-board/express": "^5.10.2",
+    "multer": "^1.4.5-lts.1",
+    "sharp": "^0.32.6",
+    "puppeteer": "^21.5.2",
+    "cheerio": "^1.0.0-rc.12",
+    "xlsx": "^0.18.5",
+    "winston": "^3.11.0",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/pg": "^8.10.7",
+    "@types/cors": "^2.8.17",
+    "@types/compression": "^1.7.5",
+    "@types/morgan": "^1.9.9",
+    "@types/bcrypt": "^5.0.2",
+    "@types/jsonwebtoken": "^9.0.5",
+    "@types/nodemailer": "^6.4.14",
+    "@types/multer": "^1.4.11",
+    "@types/crypto-js": "^4.2.1",
+    "@types/uuid": "^9.0.7",
+    "@types/jest": "^29.5.8",
+    "@types/supertest": "^2.0.16",
+    "tsx": "^4.1.4",
+    "tsc-alias": "^1.8.8",
+    "typescript": "^5.2.2",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.1",
+    "supertest": "^6.3.3",
+    "eslint": "^8.53.0",
+    "@typescript-eslint/eslint-plugin": "^6.12.0",
+    "@typescript-eslint/parser": "^6.12.0"
+  }
+}
+
+---
+
+// backend/tsconfig.json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "allowImportingTsExtensions": false,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": false,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": "./src",
+    "paths": {
+      "@/*": ["*"],
+      "@/config/*": ["config/*"],
+      "@/controllers/*": ["controllers/*"],
+      "@/database/*": ["database/*"],
+      "@/middleware/*": ["middleware/*"],
+      "@/routes/*": ["routes/*"],
+      "@/services/*": ["services/*"],
+      "@/utils/*": ["utils/*"],
+      "@/types/*": ["types/*"]
+    }
+  },
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.test.ts",
+    "**/*.spec.ts"
+  ],
+  "ts-node": {
+    "esm": true
+  }
+}
+
+---
+
+// backend/.eslintrc.json
+{
+  "env": {
+    "node": true,
+    "es2022": true
+  },
+  "extends": [
+    "eslint:recommended",
+    "@typescript-eslint/recommended"
+  ],
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "ecmaVersion": "latest",
+    "sourceType": "module",
+    "project": "./tsconfig.json"
+  },
+  "plugins": [
+    "@typescript-eslint"
+  ],
+  "rules": {
+    "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+    "@typescript-eslint/explicit-function-return-type": "off",
+    "@typescript-eslint/explicit-module-boundary-types": "off",
+    "@typescript-eslint/no-explicit-any": "warn",
+    "@typescript-eslint/no-non-null-assertion": "error",
+    "prefer-const": "error",
+    "no-var": "error",
+    "no-console": "warn",
+    "no-debugger": "error"
+  },
+  "ignorePatterns": [
+    "dist/",
+    "node_modules/",
+    "*.js"
+  ]
+}
+
+---
+
+// backend/jest.config.js
+export default {
+  preset: 'ts-jest/presets/default-esm',
+  extensionsToTreatAsEsm: ['.ts'],
+  globals: {
+    'ts-jest': {
+      useESM: true
+    }
+  },
+  testEnvironment: 'node',
+  roots: ['<rootDir>/src'],
+  testMatch: [
+    '**/__tests__/**/*.ts',
+    '**/?(*.)+(spec|test).ts'
+  ],
+  transform: {
+    '^.+\\.ts$': 'ts-jest'
+  },
+  collectCoverageFrom: [
+    'src/**/*.ts',
+    '!src/**/*.d.ts',
+    '!src/scripts/**/*',
+    '!src/types/**/*'
+  ],
+  coverageDirectory: 'coverage',
+  coverageReporters: ['text', 'lcov', 'html'],
+  setupFilesAfterEnv: ['<rootDir>/src/test/setup.ts'],
+  moduleNameMapping: {
+    '^@/(.*)$': '<rootDir>/src/$1'
+  }
+};
+
+---
+
+// backend/src/config/environment.ts
+import { config } from 'dotenv';
+import { z } from 'zod';
+
+// Load environment variables
+config();
+
+// Environment validation schema
+const envSchema = z.object({
+  // Application
+  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  PORT: z.string().transform(Number).default(3001),
+  
+  // Database
+  DB_HOST: z.string().default('localhost'),
+  DB_PORT: z.string().transform(Number).default(5432),
+  DB_NAME: z.string().min(1),
+  DB_USER: z.string().min(1),
+  DB_PASSWORD: z.string().min(1),
+  DATABASE_URL: z.string().url(),
+  
+  // Security
+  JWT_SECRET: z.string().min(32),
+  JWT_REFRESH_SECRET: z.string().min(32),
+  ENCRYPTION_KEY: z.string().min(32),
+  
+  // CORS
+  CORS_ORIGIN: z.string().default('http://localhost:3000'),
+  
+  // File Upload
+  UPLOAD_DIR: z.string().default('./uploads'),
+  MAX_FILE_SIZE: z.string().transform(Number).default(10485760), // 10MB
+  
+  // AI Services (optional in development)
+  AZURE_AI_ENDPOINT: z.string().url().optional(),
+  AZURE_AI_KEY: z.string().optional(),
+  OPENAI_API_KEY: z.string().optional(),
+  GITHUB_TOKEN: z.string().optional(),
+  
+  // Email (optional in development)
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.string().transform(Number).optional(),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  
+  // SMS (optional in development)
+  TWILIO_ACCOUNT_SID: z.string().optional(),
+  TWILIO_AUTH_TOKEN: z.string().optional(),
+  TWILIO_PHONE_NUMBER: z.string().optional(),
+});
+
+// Validate environment variables
+const parseResult = envSchema.safeParse(process.env);
+
+if (!parseResult.success) {
+  console.error('❌ Invalid environment variables:');
+  console.error(parseResult.error.flatten().fieldErrors);
+  process.exit(1);
+}
+
+export const env = parseResult.data;
+
+// Database configuration
+export const dbConfig = {
+  host: env.DB_HOST,
+  port: env.DB_PORT,
+  database: env.DB_NAME,
+  user: env.DB_USER,
+  password: env.DB_PASSWORD,
+  max: 20, // Maximum pool size
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
+};
+
+// JWT configuration
+export const jwtConfig = {
+  accessTokenSecret: env.JWT_SECRET,
+  refreshTokenSecret: env.JWT_REFRESH_SECRET,
+  accessTokenExpiry: '15m',
+  refreshTokenExpiry: '7d',
+};
+
+// Rate limiting configuration
+export const rateLimitConfig = {
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again later.',
+};
+
+---
+
+// backend/src/server.ts
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import compression from 'compression';
+import morgan from 'morgan';
+import rateLimit from 'express-rate-limit';
+import 'express-async-errors';
+
+import { env, rateLimitConfig } from '@/config/environment';
+import { initDatabase } from '@/database/connection';
+import { dbConfig } from '@/config/environment';
+import { errorHandler } from '@/middleware/errorHandler';
+import { notFoundHandler } from '@/middleware/notFoundHandler';
+import { logger } from '@/utils/logger';
+
+// Import routes
+import authRoutes from '@/routes/auth';
+import userRoutes from '@/routes/users';
+import productRoutes from '@/routes/products';
+import searchRoutes from '@/routes/search';
+import submissionRoutes from '@/routes/submissions';
+import uploadRoutes from '@/routes/uploads';
+import healthRoutes from '@/routes/health';
+
+const app = express();
+const PORT = env.PORT;
+
+// Initialize database connection
+const db = initDatabase(dbConfig);
+
+// Security middleware
+app.use(helmet({
+  contentSecurityPolicy: env.NODE_ENV === 'production' ? undefined : false,
+}));
+
+// CORS configuration
+app.use(cors({
+  origin: env.CORS_ORIGIN,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
+
+// Compression
+app.use(compression());
+
+// Body parsing middleware
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Logging
+if (env.NODE_ENV === 'development') {
+  app.use(morgan('dev'));
+} else {
+  app.use(morgan('combined', {
+    stream: {
+      write: (message: string) => logger.info(message.trim())
+    }
+  }));
+}
+
+// Rate limiting
+const limiter = rateLimit(rateLimitConfig);
+app.use('/api/', limiter);
+
+// Health check (before rate limiting)
+app.use('/health', healthRoutes);
+
+// API routes
+app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/search', searchRoutes);
+app.use('/api/submissions', submissionRoutes);
+app.use('/api/uploads', uploadRoutes);
+
+// Static file serving for uploads
+app.use('/uploads', express.static(env.UPLOAD_DIR));
+
+// 404 handler
+app.use(notFoundHandler);
+
+// Global error handler
+app.use(errorHandler);
+
+// Graceful shutdown
+const server = app.listen(PORT, () => {
+  logger.info(`🚀 Fi-Lis NPD Platform Backend`);
+  logger.info(`📍 Environment: ${env.NODE_ENV}`);
+  logger.info(`🌐 Server running on port ${PORT}`);
+  logger.info(`🗄️  Database: ${env.DB_NAME}@${env.DB_HOST}:${env.DB_PORT}`);
+  logger.info(`📁 Upload directory: ${env.UPLOAD_DIR}`);
+  logger.info(`🔒 CORS origin: ${env.CORS_ORIGIN}`);
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (err: Error) => {
+  logger.error('Unhandled Promise Rejection:', err);
+  server.close(() => {
+    process.exit(1);
+  });
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err: Error) => {
+  logger.error('Uncaught Exception:', err);
+  process.exit(1);
+});
+
+// Graceful shutdown on SIGTERM
+process.on('SIGTERM', () => {
+  logger.info('SIGTERM received, shutting down gracefully');
+  server.close(async () => {
+    try {
+      await db.close();
+      logger.info('Server closed successfully');
+      process.exit(0);
+    } catch (error) {
+      logger.error('Error during shutdown:', error);
+      process.exit(1);
+    }
+  });
+});
+
+export default app;
+
+---
+
+// backend/src/utils/logger.ts
+import winston from 'winston';
+import { env } from '@/config/environment';
+
+// Custom log format
+const logFormat = winston.format.combine(
+  winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+  winston.format.errors({ stack: true }),
+  winston.format.printf(({ timestamp, level, message, stack }) => {
+    return `${timestamp} [${level.toUpperCase()}]: ${stack || message}`;
+  })
+);
+
+// Create logger instance
+export const logger = winston.createLogger({
+  level: env.NODE_ENV === 'production' ? 'info' : 'debug',
+  format: logFormat,
+  defaultMeta: { service: 'filis-backend' },
+  transports: [
+    // Console transport
+    new winston.transports.Console({
+      format: winston.format.combine(
+        winston.format.colorize(),
+        logFormat
+      )
+    }),
+    
+    // File transports (only in production or when explicitly enabled)
+    ...(env.NODE_ENV === 'production' || process.env.ENABLE_FILE_LOGGING ? [
+      new winston.transports.File({ 
+        filename: 'logs/error.log', 
+        level: 'error',
+        maxsize: 5242880, // 5MB
+        maxFiles: 5
+      }),
+      new winston.transports.File({ 
+        filename: 'logs/combined.log',
+        maxsize: 5242880, // 5MB
+        maxFiles: 5
+      })
+    ] : [])
+  ],
+  
+  // Don't exit on handled exceptions
+  exitOnError: false
+});
+
+// Handle uncaught exceptions and unhandled rejections
+if (env.NODE_ENV === 'production') {
+  logger.exceptions.handle(
+    new winston.transports.File({ filename: 'logs/exceptions.log' })
+  );
+  
+  logger.rejections.handle(
+    new winston.transports.File({ filename: 'logs/rejections.log' })
+  );
+}
+
+---
+
+// backend/src/middleware/errorHandler.ts
+import { Request, Response, NextFunction } from 'express';
+import { env } from '@/config/environment';
+import { logger } from '@/utils/logger';
+import { DatabaseError, ValidationError, NotFoundError, DuplicateError } from '@/database/errors';
+
+export interface AppError extends Error {
+  statusCode?: number;
+  status?: string;
+  isOperational?: boolean;
+}
+
+// Custom error class
+export class HttpError extends Error implements AppError {
+  statusCode: number;
+  status: string;
+  isOperational: boolean;
+
+  constructor(message: string, statusCode: number) {
+    super(message);
+    this.statusCode = statusCode;
+    this.status = `${statusCode}`.startsWith('4') ? 'fail' : 'error';
+    this.isOperational = true;
+
+    Error.captureStackTrace(this, this.constructor);
+  }
+}
+
+// Error handler middleware
+export const errorHandler = (
+  err: AppError,
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  let error = { ...err };
+  error.message = err.message;
+
+  // Log error
+  logger.error(`Error ${req.method} ${req.path}:`, {
+    error: err.message,
+    stack: err.stack,
+    body: req.body,
+    params: req.params,
+    query: req.query,
+    ip: req.ip,
+    userAgent: req.get('User-Agent')
+  });
+
+  // Database errors
+  if (err instanceof DatabaseError) {
+    error.statusCode = 500;
+    error.message = env.NODE_ENV === 'production' ? 'Database operation failed' : err.message;
+  }
+
+  // Validation errors
+  if (err instanceof ValidationError) {
+    error.statusCode = 400;
+    error.message = err.message;
+  }
+
+  // Not found errors
+  if (err instanceof NotFoundError) {
+    error.statusCode = 404;
+    error.message = err.message;
+  }
+
+  // Duplicate errors
+  if (err instanceof DuplicateError) {
+    error.statusCode = 409;
+    error.message = err.message;
+  }
+
+  // JWT errors
+  if (err.name === 'JsonWebTokenError') {
+    error.statusCode = 401;
+    error.message = 'Invalid token';
+  }
+
+  if (err.name === 'TokenExpiredError') {
+    error.statusCode = 401;
+    error.message = 'Token expired';
+  }
+
+  // Multer errors (file upload)
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    error.statusCode = 413;
+    error.message = 'File too large';
+  }
+
+  // Default to 500 server error
+  const statusCode = error.statusCode || 500;
+  const message = error.message || 'Internal Server Error';
+
+  res.status(statusCode).json({
+    success: false,
+    error: message,
+    ...(env.NODE_ENV === 'development' && {
+      stack: err.stack,
+      details: error
+    })
+  });
+};
+
+---
+
+// backend/src/middleware/notFoundHandler.ts
+import { Request, Response } from 'express';
+
+export const notFoundHandler = (req: Request, res: Response) => {
+  res.status(404).json({
+    success: false,
+    error: `Route ${req.originalUrl} not found`,
+    method: req.method
+  });
+};
+
+---
+
+// backend/src/routes/health.ts
+import { Router } from 'express';
+import { getDatabase } from '@/database/connection';
+import { logger } from '@/utils/logger';
+
+const router = Router();
+
+// Health check endpoint
+router.get('/', async (req, res) => {
+  const startTime = Date.now();
+  
+  try {
+    // Check database connection
+    const db = getDatabase();
+    const dbHealthy = await db.healthCheck();
+    
+    // Get system info
+    const memoryUsage = process.memoryUsage();
+    const uptime = process.uptime();
+    
+    const health = {
+      status: 'OK',
+      timestamp: new Date().toISOString(),
+      uptime: `${Math.floor(uptime)}s`,
+      environment: process.env.NODE_ENV,
+      version: process.env.npm_package_version || '1.0.0',
+      database: {
+        status: dbHealthy ? 'connected' : 'disconnected',
+        pool: db.getPoolStatus()
+      },
+      memory: {
+        rss: `${Math.round(memoryUsage.rss / 1024 / 1024)}MB`,
+        heapTotal: `${Math.round(memoryUsage.heapTotal / 1024 / 1024)}MB`,
+        heapUsed: `${Math.round(memoryUsage.heapUsed / 1024 / 1024)}MB`,
+        external: `${Math.round(memoryUsage.external / 1024 / 1024)}MB`
+      },
+      responseTime: `${Date.now() - startTime}ms`
+    };
+
+    res.json(health);
+  } catch (error) {
+    logger.error('Health check failed:', error);
+    res.status(503).json({
+      status: 'ERROR',
+      timestamp: new Date().toISOString(),
+      error: 'Service unavailable',
+      responseTime: `${Date.now() - startTime}ms`
+    });
+  }
+});
+
+// Detailed health check for monitoring systems
+router.get('/detailed', async (req, res) => {
+  const startTime = Date.now();
+  
+  try {
+    const db = getDatabase();
+    const checks = {
+      database: false,
+      diskSpace: true, // Placeholder - implement if needed
+      memory: true,
+      responseTime: true
+    };
+
+    // Database check
+    try {
+      checks.database = await db.healthCheck();
+    } catch (error) {
+      checks.database = false;
+    }
+
+    // Memory check (alert if > 90% heap used)
+    const memUsage = process.memoryUsage();
+    checks.memory = (memUsage.heapUsed / memUsage.heapTotal) < 0.9;
+
+    // Response time check (alert if > 1000ms)
+    const responseTime = Date.now() - startTime;
+    checks.responseTime = responseTime < 1000;
+
+    const allHealthy = Object.values(checks).every(check => check === true);
+
+    res.status(allHealthy ? 200 : 503).json({
+      status: allHealthy ? 'HEALTHY' : 'UNHEALTHY',
+      checks,
+      timestamp: new Date().toISOString(),
+      responseTime: `${responseTime}ms`
+    });
+  } catch (error) {
+    logger.error('Detailed health check failed:', error);
+    res.status(503).json({
+      status: 'ERROR',
+      error: 'Health check failed',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+export default router;
+
+---
+
+// backend/src/scripts/init-database.ts
+import { readFileSync } from 'fs';
+import { join } from 'path';
+import { initDatabase } from '@/database/connection';
+import { dbConfig } from '@/config/environment';
+import { logger } from '@/utils/logger';
+
+async function initDatabaseSchema() {
+  logger.info('🗄️  Initializing database schema...');
+  
+  try {
+    const db = initDatabase(dbConfig);
+    
+    // Read schema file
+    const schemaPath = join(__dirname, '../database/schema.sql');
+    const schema = readFileSync(schemaPath, 'utf8');
+    
+    // Execute schema
+    await db.query(schema);
+    
+    logger.info('✅ Database schema initialized successfully');
+    
+    // Verify tables were created
+    const tablesResult = await db.query(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public'
+      ORDER BY table_name
+    `);
+    
+    const tables = tablesResult.rows.map(row => row.table_name);
+    logger.info(`📋 Created tables: ${tables.join(', ')}`);
+    
+  } catch (error) {
+    logger.error('❌ Database initialization failed:', error);
+    throw error;
+  }
+}
+
+// Run if called directly
+if (import.meta.url === `file://${process.argv[1]}`) {
+  initDatabaseSchema()
+    .then(() => process.exit(0))
+    .catch((error) => {
+      logger.error(error);
+      process.exit(1);
+    });
+}
+
+export { initDatabaseSchema };
+
+---
+
+// backend/src/scripts/seed-database.ts
+import { initDatabase } from '@/database/connection';
+import { dbConfig } from '@/config/environment';
+import { logger } from '@/utils/logger';
+import { UserRepository } from '@/database/repositories/UserRepository';
+import * as bcrypt from 'bcrypt';
+
+async function seedDatabase() {
+  logger.info('🌱 Seeding database...');
+  
+  try {
+    const db = initDatabase(dbConfig);
+    const userRepo = new UserRepository();
+    
+    // Create admin user
+    const adminExists = await userRepo.findByEmail('admin@fi-lis.com');
+    
+    if (!adminExists) {
+      await userRepo.createUser({
+        email: 'admin@fi-lis.com',
+        phone: '+919999999999',
+        password: 'Admin@123',
+        full_name: 'System Administrator'
+      });
+      
+      // Update admin user with additional permissions
+      const admin = await userRepo.findByEmail('admin@fi-lis.com');
+      if (admin) {
+        await userRepo.update(admin.id, {
+          email_verified: true,
+          phone_verified: true,
+          kyc_status: 'complete',
+          is_active: true
+        });
+      }
+      
+      logger.info('✅ Admin user created: admin@fi-lis.com / Admin@123');
+    } else {
+      logger.info('ℹ️  Admin user already exists');
+    }
+    
+    // Seed user tier configurations
+    await db.query(`
+      INSERT INTO user_tier_configs (tier, min_submissions, min_quality_score, min_approval_rate, reward_multiplier, tier_bonus) 
+      VALUES 
+        ('bronze', 0, 0.0, 0.0, 1.0, 0),
+        ('silver', 10, 7.0, 0.8, 1.1, 100),
+        ('gold', 25, 8.0, 0.85, 1.2, 250),
+        ('platinum', 50, 8.5, 0.9, 1.3, 500),
+        ('diamond', 100, 9.0, 0.95, 1.5, 1000)
+      ON CONFLICT (tier) DO UPDATE SET
+        min_submissions = EXCLUDED.min_submissions,
+        min_quality_score = EXCLUDED.min_quality_score,
+        min_approval_rate = EXCLUDED.min_approval_rate,
+        reward_multiplier = EXCLUDED.reward_multiplier,
+        tier_bonus = EXCLUDED.tier_bonus
+    `);
+    
+    logger.info('✅ User tier configurations seeded');
+    
+    // Seed AI model configurations
+    await db.query(`
+      INSERT INTO ai_models (name, provider, model_id, api_endpoint, is_active, cost_per_token, capabilities)
+      VALUES 
+        ('GPT-4 Turbo', 'azure', 'gpt-4', 'https://api.openai.com/v1/chat/completions', true, 0.00003, '["text", "vision", "analysis"]'),
+        ('GPT-4 Vision', 'openai', 'gpt-4-vision-preview', 'https://api.openai.com/v1/chat/completions', true, 0.00010, '["text", "vision", "analysis"]'),
+        ('Claude 3.5 Sonnet', 'anthropic', 'claude-3-5-sonnet-20241022', 'https://api.anthropic.com/v1/messages', false, 0.00015, '["text", "analysis"]'),
+        ('Gemini Pro Vision', 'google', 'gemini-pro-vision', 'https://generativelanguage.googleapis.com/v1beta/models', false, 0.00025, '["text", "vision", "analysis"]')
+      ON CONFLICT (model_id, provider) DO UPDATE SET
+        name = EXCLUDED.name,
+        is_active = EXCLUDED.is_active,
+        cost_per_token = EXCLUDED.cost_per_token,
+        capabilities = EXCLUDED.capabilities
+    `);
+    
+    logger.info('✅ AI model configurations seeded');
+    
+    // Seed scraping sources
+    await db.query(`
+      INSERT INTO scraping_sources (name, base_url, search_endpoint, selectors, rate_limit, is_active)
+      VALUES 
+        ('Amazon India', 'https://www.amazon.in', '/s?k={query}', '{"title": ".a-size-medium", "price": ".a-price-whole", "image": ".s-image"}', 5, true),
+        ('Flipkart', 'https://www.flipkart.com', '/search?q={query}', '{"title": "._4rR01T", "price": "._30jeq3", "image": "._396cs4"}', 5, true),
+        ('BigBasket', 'https://www.bigbasket.com', '/ps/?q={query}', '{"title": ".break-words", "price": ".discnt-price", "image": ".product-image"}', 3, true),
+        ('Grofers/Blinkit', 'https://blinkit.com', '/search?q={query}', '{"title": ".Product__ProductName", "price": ".Product__UpdatedPrice", "image": ".Product__ProductImage"}', 3, false)
+      ON CONFLICT (name) DO UPDATE SET
+        base_url = EXCLUDED.base_url,
+        search_endpoint = EXCLUDED.search_endpoint,
+        selectors = EXCLUDED.selectors,
+        rate_limit = EXCLUDED.rate_limit,
+        is_active = EXCLUDED.is_active
+    `);
+    
+    logger.info('✅ Web scraping sources seeded');
+    
+    // Seed system configuration
+    await db.query(`
+      INSERT INTO system_config (key, value)
+      VALUES 
+        ('default_reward_amount', '300'),
+        ('regional_bonus_amount', '50'),
+        ('max_daily_submissions', '10'),
+        ('auto_approval_threshold', '0.85'),
+        ('image_quality_threshold', '0.7'),
+        ('duplicate_similarity_threshold', '0.8')
+      ON CONFLICT (key) DO UPDATE SET
+        value = EXCLUDED.value,
+        updated_at = NOW()
+    `);
+    
+    logger.info('✅ System configuration seeded');
+    
+    logger.info('🎉 Database seeding completed successfully');
+    
+  } catch (error) {
+    logger.error('❌ Database seeding failed:', error);
+    throw error;
+  }
+}
+
+// Run if called directly
+if (import.meta.url === `file://${process.argv[1]}`) {
+  seedDatabase()
+    .then(() => process.exit(0))
+    .catch((error) => {
+      logger.error(error);
+      process.exit(1);
+    });
+}
+
+export { seedDatabase };
+
+---
+
+// backend/src/types/index.ts
+// Shared type definitions
+
+export interface ApiResponse<T = any> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  message?: string;
+  pagination?: PaginationMeta;
+}
+
+export interface PaginationMeta {
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  itemsPerPage: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
+export interface PaginationQuery {
+  page?: string;
+  limit?: string;
+  offset?: string;
+}
+
+export interface AuthenticatedUser {
+  id: string;
+  email: string;
+  phone: string;
+  fullName: string;
+  userTier: string;
+  kycStatus: string;
+  isActive: boolean;
+}
+
+export interface JWTPayload {
+  userId: string;
+  email: string;
+  tokenType: 'access' | 'refresh';
+  iat?: number;
+  exp?: number;
+}
+
+export interface FileUpload {
+  fieldname: string;
+  originalname: string;
+  encoding: string;
+  mimetype: string;
+  size: number;
+  buffer: Buffer;
+}
+
+export interface ImageMetadata {
+  width: number;
+  height: number;
+  format: string;
+  size: number;
+  quality?: number;
+}
+
+export interface UploadedFile {
+  id: string;
+  filename: string;
+  originalName: string;
+  mimetype: string;
+  size: number;
+  path: string;
+  url: string;
+  metadata?: ImageMetadata;
+}
+
+// API Error types
+export interface ApiError {
+  message: string;
+  code?: string;
+  statusCode?: number;
+  details?: any;
+}
+
+// Request types
+export interface AuthenticatedRequest extends Request {
+  user?: AuthenticatedUser;
+}
+
+// Environment types
+export type NodeEnv = 'development' | 'production' | 'test';
+
+// Database types
+export type SortDirection = 'ASC' | 'DESC';
+
+export interface QueryOptions {
+  page?: number;
+  limit?: number;
+  offset?: number;
+  sortBy?: string;
+  sortDirection?: SortDirection;
+  filters?: Record<string, any>;
+}
+
+export interface DatabaseResult<T> {
+  data: T[];
+  total: number;
+  page?: number;
+  limit?: number;
+}
+
+// Validation schemas
+export interface ValidationSchema {
+  [key: string]: any;
+}
+
+// Queue job types
+export interface JobData {
+  id: string;
+  type: string;
+  payload: any;
+  createdAt: Date;
+}
+
+export interface ProcessingResult {
+  success: boolean;
+  data?: any;
+  error?: string;
+  duration?: number;
+}

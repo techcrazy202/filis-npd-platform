@@ -1,4 +1,3 @@
-// backend/src/scripts/init-database.ts
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { initDatabase } from '@/database/connection';

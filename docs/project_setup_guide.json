@@ -1,0 +1,452 @@
+{
+  "name": "filis-npd-platform",
+  "version": "1.0.0",
+  "description": "Fi-Lis NPD Platform - Food Industry Analytics with NPD Crowdsourcing",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend", 
+    "admin",
+    "shared"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run dev:admin\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev", 
+    "dev:admin": "cd admin && npm run dev",
+    "build": "npm run build:backend && npm run build:frontend && npm run build:admin",
+    "build:backend": "cd backend && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "build:admin": "cd admin && npm run build",
+    "deploy": "chmod +x deploy.sh && ./deploy.sh",
+    "deploy:ssl": "chmod +x deploy.sh && ./deploy.sh --ssl",
+    "migrate": "cd backend && npm run migrate",
+    "seed": "cd backend && npm run seed",
+    "db:reset": "cd backend && npm run db:reset",
+    "data:migrate": "cd backend && npm run data:migrate",
+    "test": "npm run test:backend && npm run test:frontend",
+    "test:backend": "cd backend && npm run test",
+    "test:frontend": "cd frontend && npm run test",
+    "lint": "npm run lint:backend && npm run lint:frontend",
+    "lint:backend": "cd backend && npm run lint",
+    "lint:frontend": "cd frontend && npm run lint",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "docker:build": "docker-compose build",
+    "backup": "./deploy.sh backup",
+    "status": "./deploy.sh status"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "@types/node": "^20.8.0",
+    "typescript": "^5.2.2"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=9.0.0"
+  }
+}
+
+---
+
+# Backend Package.json
+{
+  "name": "@filis/backend",
+  "version": "1.0.0", 
+  "description": "Fi-Lis NPD Platform Backend API",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc && tsc-alias",
+    "start": "node dist/server.js",
+    "migrate": "prisma migrate dev",
+    "migrate:prod": "prisma migrate deploy",
+    "db:push": "prisma db push",
+    "db:seed": "tsx src/scripts/seed.ts",
+    "db:reset": "prisma migrate reset --force",
+    "db:studio": "prisma studio",
+    "data:migrate": "tsx src/scripts/data-migration.ts",
+    "generate": "prisma generate",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "worker": "tsx src/workers/index.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.6.0",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "helmet": "^7.1.0",
+    "cors": "^2.8.5",
+    "compression": "^1.7.4",
+    "morgan": "^1.10.0",
+    "dotenv": "^16.3.1",
+    "zod": "^3.22.4",
+    "bcrypt": "^5.1.1",
+    "jsonwebtoken": "^9.0.2",
+    "jose": "^5.1.3",
+    "nodemailer": "^6.9.7",
+    "twilio": "^4.19.0",
+    "axios": "^1.6.2",
+    "redis": "^4.6.10",
+    "bull": "^4.12.0",
+    "@bull-board/api": "^5.10.2",
+    "@bull-board/express": "^5.10.2",
+    "multer": "^1.4.5-lts.1",
+    "sharp": "^0.32.6",
+    "aws-sdk": "^2.1498.0",
+    "puppeteer": "^21.5.2",
+    "cheerio": "^1.0.0-rc.12",
+    "xlsx": "^0.18.5",
+    "crypto-js": "^4.2.0",
+    "razorpay": "^2.9.2",
+    "winston": "^3.11.0",
+    "express-validator": "^7.0.1",
+    "express-async-errors": "^3.1.1"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/cors": "^2.8.17",
+    "@types/compression": "^1.7.5",
+    "@types/morgan": "^1.9.9",
+    "@types/bcrypt": "^5.0.2",
+    "@types/jsonwebtoken": "^9.0.5",
+    "@types/nodemailer": "^6.4.14",
+    "@types/multer": "^1.4.11",
+    "@types/crypto-js": "^4.2.1",
+    "@types/jest": "^29.5.8",
+    "@types/supertest": "^2.0.16",
+    "prisma": "^5.6.0",
+    "tsx": "^4.1.4",
+    "tsc-alias": "^1.8.8",
+    "typescript": "^5.2.2",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.1",
+    "supertest": "^6.3.3",
+    "eslint": "^8.53.0",
+    "@typescript-eslint/eslint-plugin": "^6.12.0",
+    "@typescript-eslint/parser": "^6.12.0"
+  }
+}
+
+---
+
+# Frontend Package.json
+{
+  "name": "@filis/frontend",
+  "version": "1.0.0",
+  "description": "Fi-Lis NPD Platform Frontend",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "lint:fix": "next lint --fix",
+    "type-check": "tsc --noEmit",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage"
+  },
+  "dependencies": {
+    "next": "^14.0.3",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "@next/font": "^14.0.3",
+    "next-pwa": "^5.6.0",
+    "zustand": "^4.4.7",
+    "@tanstack/react-query": "^5.8.4",
+    "@tanstack/react-query-devtools": "^5.8.4",
+    "react-hook-form": "^7.48.2",
+    "@hookform/resolvers": "^3.3.2",
+    "zod": "^3.22.4",
+    "axios": "^1.6.2",
+    "tailwindcss": "^3.3.6",
+    "autoprefixer": "^10.4.16",
+    "postcss": "^8.4.32",
+    "@tailwindcss/forms": "^0.5.7",
+    "@tailwindcss/typography": "^0.5.10",
+    "@radix-ui/react-slot": "^1.0.2",
+    "@radix-ui/react-dialog": "^1.0.5",
+    "@radix-ui/react-dropdown-menu": "^2.0.6",
+    "@radix-ui/react-toast": "^1.1.5",
+    "@radix-ui/react-tooltip": "^1.0.7",
+    "@radix-ui/react-select": "^2.0.0",
+    "@radix-ui/react-tabs": "^1.0.4",
+    "@radix-ui/react-accordion": "^1.1.2",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.0.0",
+    "tailwind-merge": "^2.0.0",
+    "lucide-react": "^0.294.0",
+    "recharts": "^2.8.0",
+    "react-intersection-observer": "^9.5.3",
+    "react-dropzone": "^14.2.3",
+    "react-hot-toast": "^2.4.1",
+    "date-fns": "^2.30.0",
+    "sharp": "^0.32.6"
+  },
+  "devDependencies": {
+    "@types/node": "^20.8.0",
+    "@types/react": "^18.2.38",
+    "@types/react-dom": "^18.2.17",
+    "typescript": "^5.2.2",
+    "eslint": "^8.53.0",
+    "eslint-config-next": "^14.0.3",
+    "@typescript-eslint/eslint-plugin": "^6.12.0",
+    "@typescript-eslint/parser": "^6.12.0",
+    "vitest": "^0.34.6",
+    "@vitejs/plugin-react": "^4.1.1",
+    "@testing-library/react": "^13.4.0",
+    "@testing-library/jest-dom": "^6.1.4",
+    "jsdom": "^23.0.1"
+  }
+}
+
+---
+
+# Quick Start Guide
+
+## 🚀 Fi-Lis NPD Platform - Quick Start Guide
+
+### Prerequisites
+- Node.js 20+ and npm 9+
+- Docker and Docker Compose
+- Git
+- DigitalOcean Droplet (4GB RAM, 2 vCPUs minimum)
+
+### 1. Initial Setup on DigitalOcean
+
+```bash
+# SSH into your droplet
+ssh root@157.245.105.243
+
+# Clone or upload the project
+git clone <your-repo-url> /opt/filis-npd-platform
+# OR upload files to /opt/filis-npd-platform
+
+cd /opt/filis-npd-platform
+
+# Make deployment script executable
+chmod +x deploy.sh
+
+# Run initial deployment (without SSL for now)
+./deploy.sh
+
+# The script will:
+# - Install Docker & Docker Compose
+# - Setup firewall and optimize system
+# - Create necessary directories
+# - Setup monitoring and backups
+```
+
+### 2. Configure Environment
+
+```bash
+# Edit the environment file
+nano /opt/filis-npd-platform/.env
+
+# Fill in your actual values:
+DB_PASSWORD=your_secure_password_here
+JWT_SECRET=your_256_bit_jwt_secret
+AZURE_AI_ENDPOINT=your_azure_endpoint
+AZURE_AI_KEY=your_azure_key
+DO_SPACES_KEY=your_do_spaces_key
+DO_SPACES_SECRET=your_do_spaces_secret
+RAZORPAY_KEY_ID=your_razorpay_key
+# ... etc
+```
+
+### 3. Setup SSL (Production)
+
+```bash
+# Run deployment with SSL setup
+./deploy.sh --ssl
+
+# This will:
+# - Install certbot
+# - Generate Let's Encrypt certificates for app.fi-lis.com
+# - Setup auto-renewal
+```
+
+### 4. Deploy the Application
+
+```bash
+# Start all services
+docker-compose up -d
+
+# Check status
+docker-compose ps
+
+# View logs
+docker-compose logs -f
+```
+
+### 5. Database Setup
+
+```bash
+# Run database migrations
+docker-compose exec backend npm run migrate:prod
+
+# Import your 275K records
+docker-compose exec backend npm run data:migrate /path/to/your/excel/file.xlsx
+
+# Seed initial data (user tiers, AI models, etc.)
+docker-compose exec backend npm run db:seed
+```
+
+### 6. Verify Installation
+
+```bash
+# Check service status
+./deploy.sh status
+
+# Test API health
+curl https://app.fi-lis.com/api/health
+
+# Test frontend
+curl https://app.fi-lis.com
+
+# View application logs
+docker-compose logs backend frontend
+```
+
+### 7. Create Admin User
+
+```bash
+# Access the backend container
+docker-compose exec backend bash
+
+# Run admin creation script
+npm run create-admin
+
+# Follow prompts to create your admin account
+```
+
+### Development Setup (Local)
+
+```bash
+# Clone the repository
+git clone <repo-url>
+cd filis-npd-platform
+
+# Install dependencies
+npm install
+
+# Setup environment
+cp .env.example .env
+# Edit .env with your local configuration
+
+# Start databases
+docker-compose up -d postgres redis
+
+# Run migrations
+npm run migrate
+
+# Start development servers
+npm run dev
+
+# Access:
+# Frontend: http://localhost:3000
+# Backend API: http://localhost:3001
+# Admin: http://localhost:3002
+```
+
+### Useful Commands
+
+```bash
+# Monitoring
+./deploy.sh status          # System status
+./deploy.sh backup          # Manual backup
+docker-compose logs -f      # View live logs
+
+# Maintenance
+./deploy.sh update          # Update application
+./deploy.sh cleanup         # Clean up old containers
+docker system prune         # Clean up Docker
+
+# Database
+npm run migrate             # Run migrations
+npm run db:seed             # Seed database
+npm run data:migrate        # Import Excel data
+
+# Development
+npm run dev                 # Start all dev servers
+npm run test                # Run tests
+npm run lint                # Check code quality
+```
+
+### File Structure After Setup
+
+```
+/opt/filis-npd-platform/
+├── 📁 backend/             # Node.js API server
+├── 📁 frontend/            # Next.js frontend
+├── 📁 admin/               # Admin dashboard
+├── 📁 shared/              # Shared types/utils
+├── 📁 docker/              # Docker configurations
+│   ├── nginx.conf          # Nginx config
+│   ├── ssl/                # SSL certificates
+│   └── init-scripts/       # DB initialization
+├── 📁 backups/             # Automated backups
+├── 📁 logs/                # Application logs
+├── 📄 docker-compose.yml   # Services orchestration
+├── 📄 .env                 # Environment variables
+├── 📄 deploy.sh            # Deployment script
+└── 📄 README.md            # Documentation
+```
+
+### Troubleshooting
+
+**Services not starting:**
+```bash
+# Check logs
+docker-compose logs [service-name]
+
+# Restart specific service
+docker-compose restart [service-name]
+
+# Check system resources
+df -h  # Disk space
+free -h  # Memory usage
+```
+
+**Database connection issues:**
+```bash
+# Check if PostgreSQL is running
+docker-compose ps postgres
+
+# Test database connection
+docker-compose exec postgres psql -U filis_user -d filis_npd -c "SELECT 1;"
+```
+
+**SSL certificate issues:**
+```bash
+# Renew certificates manually
+certbot renew --force-renewal
+
+# Copy new certificates
+cp /etc/letsencrypt/live/app.fi-lis.com/* /opt/filis-npd-platform/docker/ssl/
+
+# Restart nginx
+docker-compose restart nginx
+```
+
+### Next Steps
+
+1. **Configure your AI models** in the admin panel
+2. **Set up web scraping sources** for product verification
+3. **Import your 275K records** using the data migration script
+4. **Test the NPD submission flow** with the mobile interface
+5. **Configure payment gateway** for rewards
+6. **Set up monitoring alerts** for production
+
+### Support
+
+- 📊 Admin Dashboard: https://admin.fi-lis.com
+- 🔍 Queue Dashboard: https://queue.fi-lis.com (internal only)
+- 📁 Logs: `/opt/filis-npd-platform/logs/`
+- 💾 Backups: `/opt/backups/filis/`
+
+The platform is now ready for production use! 🎉

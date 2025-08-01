@@ -11,6 +11,8 @@ import { logger } from '@/utils/logger';
 import healthRoutes from '@/routes/health';
 import searchRoutes from '@/routes/search';
 import authRoutes from '@/routes/auth';
+import submissionsRoutes from '@/routes/submissions';
+import authRoutes from '@/routes/auth';
 
 const app = express();
 const PORT = env.PORT;
@@ -44,6 +46,8 @@ app.use(morgan('dev'));
 // Routes
 app.use('/health', healthRoutes);
 app.use('/api/search', searchRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/submissions', submissionsRoutes);
 
 // Basic route
 app.get('/', (req, res) => {
@@ -51,10 +55,26 @@ app.get('/', (req, res) => {
     message: 'Fi-Lis NPD Platform Backend API',
     version: '1.0.0',
     environment: env.NODE_ENV,
+    database: `${env.DB_NAME}@${env.DB_HOST}:${env.DB_PORT}`,
     endpoints: {
       health: '/health',
       search: '/api/search',
-      autocomplete: '/api/search/autocomplete'
+      autocomplete: '/api/search/autocomplete',
+      auth: {
+        register: 'POST /api/auth/register',
+        login: 'POST /api/auth/login',
+        sendOtp: 'POST /api/auth/send-otp',
+        verifyOtp: 'POST /api/auth/verify-otp',
+        profile: 'GET /api/auth/me',
+        changePassword: 'POST /api/auth/change-password'
+      },
+      submissions: {
+        create: 'POST /api/submissions',
+        list: 'GET /api/submissions/my-submissions',
+        details: 'GET /api/submissions/:id',
+        uploadImages: 'POST /api/submissions/:id/images',
+        stats: 'GET /api/submissions/stats/summary'
+      }
     }
   });
 });

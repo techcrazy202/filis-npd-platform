@@ -1,7 +1,8 @@
 // backend/src/database/connection.ts
 // Custom Database Layer - No ORM, Direct PostgreSQL
 
-import { Pool, PoolClient, QueryResult } from 'pg';
+import { Pool, QueryResult } from 'pg';
+import type { PoolClient } from 'pg';
 import { DatabaseError } from './errors';
 
 interface DatabaseConfig {
@@ -178,4 +179,4 @@ export const getDatabase = (): DatabaseConnection => {
 };
 
 // Export types
-export { DatabaseConfig, PoolClient };
+export type { DatabaseConfig, PoolClient };

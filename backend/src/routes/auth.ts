@@ -1,364 +1,351 @@
-// backend/src/routes/auth.ts
 import { Router } from 'express';
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
 import { body, validationResult } from 'express-validator';
-import { AuthService } from '@/services/AuthService';
+import { getDatabase } from '@/database/connection';
+import { env } from '@/config/environment';
 import { authenticateToken, AuthenticatedRequest } from '@/middleware/authMiddleware';
-import { logger } from '@/utils/logger';
 
 const router = Router();
-const authService = new AuthService();
 
-// Validation middleware
-const handleValidationErrors = (req: any, res: any, next: any) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({
-      success: false,
-      error: 'Validation failed',
-      details: errors.array()
-    });
-  }
-  next();
-};
-
-// Register validation rules
-const registerValidation = [
-  body('email')
-    .isEmail()
-    .normalizeEmail()
-    .withMessage('Valid email is required'),
-  body('phone')
-    .matches(/^\+?[1-9]\d{1,14}$/)
-    .withMessage('Valid phone number is required'),
-  body('password')
-    .isLength({ min: 8 })
-    .withMessage('Password must be at least 8 characters')
-    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
-    .withMessage('Password must contain uppercase, lowercase, number and special character'),
-  body('confirmPassword')
-    .custom((value, { req }) => {
-      if (value !== req.body.password) {
-        throw new Error('Passwords do not match');
-      }
-      return true;
-    }),
-  body('full_name')
-    .isLength({ min: 2 })
-    .withMessage('Full name is required'),
-  handleValidationErrors
-];
-
-// Login validation rules
-const loginValidation = [
-  body('email')
-    .isEmail()
-    .normalizeEmail()
-    .withMessage('Valid email is required'),
-  body('password')
-    .notEmpty()
-    .withMessage('Password is required'),
-  handleValidationErrors
-];
-
-// OTP validation rules
-const otpValidation = [
-  body('phone')
-    .matches(/^\+?[1-9]\d{1,14}$/)
-    .withMessage('Valid phone number is required'),
-  body('code')
-    .isLength({ min: 6, max: 6 })
-    .isNumeric()
-    .withMessage('Valid 6-digit OTP code is required'),
-  body('purpose')
-    .isIn(['registration', 'login', 'phone_verification', 'password_reset'])
-    .withMessage('Valid purpose is required'),
-  handleValidationErrors
-];
-
-// POST /api/auth/register
-router.post('/register', registerValidation, async (req, res) => {
+// Register new user
+router.post('/register', [
+  body('email').isEmail().normalizeEmail(),
+  body('phone').isMobilePhone('en-IN'),
+  body('password').isLength({ min: 8 }),
+  body('full_name').isLength({ min: 2 })
+], async (req, res) => {
   try {
-    const { email, phone, password, confirmPassword, full_name } = req.body;
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        details: errors.array()
+      });
+    }
 
-    const result = await authService.register({
-      email,
-      phone,
-      password,
-      confirmPassword,
-      full_name
-    });
+    const { email, phone, password, full_name } = req.body;
+    const db = getDatabase();
 
-    logger.info(`User registered: ${email}`);
+    // Check if user exists
+    const existingUser = await db.query(
+      'SELECT id FROM users WHERE email = $1 OR phone = $2',
+      [email, phone]
+    );
+
+    if (existingUser.rows.length > 0) {
+      return res.status(409).json({
+        success: false,
+        error: 'User already exists with this email or phone'
+      });
+    }
+
+    // Hash password
+    const password_hash = await bcrypt.hash(password, 12);
+
+    // Create user
+    const result = await db.query(
+      `INSERT INTO users (email, phone, password_hash, full_name) 
+       VALUES ($1, $2, $3, $4) 
+       RETURNING id, email, phone, full_name, user_tier, created_at`,
+      [email, phone, password_hash, full_name]
+    );
+
+    const user = result.rows[0];
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: user.id, email: user.email },
+      env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
 
     res.status(201).json({
       success: true,
-      message: result.message,
       data: {
-        user: result.user
+        user: {
+          id: user.id,
+          email: user.email,
+          phone: user.phone,
+          full_name: user.full_name,
+          user_tier: user.user_tier
+        },
+        token
       }
     });
+
   } catch (error) {
-    logger.error('Registration error:', error);
-    res.status(400).json({
+    console.error('Registration error:', error);
+    res.status(500).json({
       success: false,
-      error: error.message
+      error: 'Registration failed'
     });
   }
 });
 
-// POST /api/auth/login
-router.post('/login', loginValidation, async (req, res) => {
+// Login user
+router.post('/login', [
+  body('email').isEmail().normalizeEmail(),
+  body('password').notEmpty()
+], async (req, res) => {
   try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        details: errors.array()
+      });
+    }
+
     const { email, password } = req.body;
+    const db = getDatabase();
 
-    const result = await authService.login({ email, password });
+    // Find user
+    const result = await db.query(
+      'SELECT id, email, phone, password_hash, full_name, user_tier, email_verified, phone_verified, is_active FROM users WHERE email = $1',
+      [email]
+    );
 
-    logger.info(`User logged in: ${email}`);
+    if (result.rows.length === 0) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid credentials'
+      });
+    }
+
+    const user = result.rows[0];
+
+    if (!user.is_active) {
+      return res.status(401).json({
+        success: false,
+        error: 'Account is deactivated'
+      });
+    }
+
+    // Verify password
+    const isValidPassword = await bcrypt.compare(password, user.password_hash);
+    if (!isValidPassword) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid credentials'
+      });
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: user.id, email: user.email },
+      env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
 
     res.json({
       success: true,
-      message: 'Login successful',
       data: {
-        user: result.user,
-        tokens: result.tokens
+        user: {
+          id: user.id,
+          email: user.email,
+          phone: user.phone,
+          full_name: user.full_name,
+          user_tier: user.user_tier,
+          email_verified: user.email_verified,
+          phone_verified: user.phone_verified
+        },
+        token
       }
     });
+
   } catch (error) {
-    logger.error('Login error:', error);
-    res.status(401).json({
+    console.error('Login error:', error);
+    res.status(500).json({
       success: false,
-      error: error.message
+      error: 'Login failed'
     });
   }
 });
 
-// POST /api/auth/verify-otp
-router.post('/verify-otp', otpValidation, async (req, res) => {
-  try {
-    const { phone, code, purpose } = req.body;
-
-    await authService.verifyOTP(phone, code, purpose);
-
-    logger.info(`OTP verified: ${phone} for ${purpose}`);
-
-    res.json({
-      success: true,
-      message: 'OTP verified successfully'
-    });
-  } catch (error) {
-    logger.error('OTP verification error:', error);
-    res.status(400).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-// POST /api/auth/send-otp
+// Send OTP for phone verification
 router.post('/send-otp', [
-  body('phone')
-    .matches(/^\+?[1-9]\d{1,14}$/)
-    .withMessage('Valid phone number is required'),
-  body('purpose')
-    .isIn(['registration', 'login', 'phone_verification', 'password_reset'])
-    .withMessage('Valid purpose is required'),
-  handleValidationErrors
+  body('phone').isMobilePhone('en-IN'),
+  body('purpose').isIn(['verification', 'password_reset'])
 ], async (req, res) => {
   try {
     const { phone, purpose } = req.body;
+    const db = getDatabase();
 
-    await authService.sendVerificationOTP(phone, purpose);
+    // Generate 6-digit OTP
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expires_at = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-    logger.info(`OTP sent: ${phone} for ${purpose}`);
+    // Store OTP (replace existing)
+    await db.query(
+      `INSERT INTO otp_codes (phone, code, purpose, expires_at) 
+       VALUES ($1, $2, $3, $4) 
+       ON CONFLICT (phone, purpose) 
+       DO UPDATE SET code = $2, expires_at = $4, attempts = 0, created_at = NOW()`,
+      [phone, code, purpose, expires_at]
+    );
+
+    // TODO: Send SMS using your SMS provider
+    console.log(`OTP for ${phone}: ${code}`);
 
     res.json({
       success: true,
       message: 'OTP sent successfully'
     });
+
   } catch (error) {
-    logger.error('Send OTP error:', error);
-    res.status(400).json({
+    console.error('Send OTP error:', error);
+    res.status(500).json({
       success: false,
-      error: error.message
+      error: 'Failed to send OTP'
     });
   }
 });
 
-// POST /api/auth/refresh-token
-router.post('/refresh-token', [
-  body('refreshToken')
-    .notEmpty()
-    .withMessage('Refresh token is required'),
-  handleValidationErrors
+// Verify OTP
+router.post('/verify-otp', [
+  body('phone').isMobilePhone('en-IN'),
+  body('code').isLength({ min: 6, max: 6 }),
+  body('purpose').isIn(['verification', 'password_reset'])
 ], async (req, res) => {
   try {
-    const { refreshToken } = req.body;
+    const { phone, code, purpose } = req.body;
+    const db = getDatabase();
 
-    const tokens = await authService.refreshTokens(refreshToken);
+    // Find OTP
+    const result = await db.query(
+      'SELECT * FROM otp_codes WHERE phone = $1 AND purpose = $2 AND expires_at > NOW()',
+      [phone, purpose]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid or expired OTP'
+      });
+    }
+
+    const otpRecord = result.rows[0];
+
+    if (otpRecord.attempts >= 3) {
+      return res.status(400).json({
+        success: false,
+        error: 'Too many attempts. Please request a new OTP'
+      });
+    }
+
+    if (otpRecord.code !== code) {
+      // Increment attempts
+      await db.query(
+        'UPDATE otp_codes SET attempts = attempts + 1 WHERE id = $1',
+        [otpRecord.id]
+      );
+      
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid OTP'
+      });
+    }
+
+    // OTP is valid - delete it
+    await db.query('DELETE FROM otp_codes WHERE id = $1', [otpRecord.id]);
+
+    // If verification purpose, update user
+    if (purpose === 'verification') {
+      await db.query(
+        'UPDATE users SET phone_verified = true WHERE phone = $1',
+        [phone]
+      );
+    }
 
     res.json({
       success: true,
-      message: 'Tokens refreshed successfully',
-      data: { tokens }
+      message: 'OTP verified successfully'
     });
+
   } catch (error) {
-    logger.error('Token refresh error:', error);
-    res.status(401).json({
+    console.error('Verify OTP error:', error);
+    res.status(500).json({
       success: false,
-      error: error.message
+      error: 'OTP verification failed'
     });
   }
 });
 
-// POST /api/auth/logout
-router.post('/logout', authenticateToken, [
-  body('refreshToken')
-    .notEmpty()
-    .withMessage('Refresh token is required'),
-  handleValidationErrors
+// Get current user profile
+router.get('/me', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const db = getDatabase();
+    
+    const result = await db.query(
+      `SELECT id, email, phone, full_name, user_tier, total_earnings, 
+              total_submissions, approved_submissions, quality_score,
+              email_verified, phone_verified, kyc_status, created_at
+       FROM users WHERE id = $1`,
+      [req.user!.id]
+    );
+
+    res.json({
+      success: true,
+      data: { user: result.rows[0] }
+    });
+
+  } catch (error) {
+    console.error('Get profile error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get profile'
+    });
+  }
+});
+
+// Change password
+router.post('/change-password', [
+  authenticateToken,
+  body('current_password').notEmpty(),
+  body('new_password').isLength({ min: 8 })
 ], async (req: AuthenticatedRequest, res) => {
   try {
-    const { refreshToken } = req.body;
+    const { current_password, new_password } = req.body;
+    const db = getDatabase();
 
-    await authService.logout(refreshToken);
+    // Get current password hash
+    const result = await db.query(
+      'SELECT password_hash FROM users WHERE id = $1',
+      [req.user!.id]
+    );
 
-    logger.info(`User logged out: ${req.user?.email}`);
+    const user = result.rows[0];
+    const isValidPassword = await bcrypt.compare(current_password, user.password_hash);
+    
+    if (!isValidPassword) {
+      return res.status(400).json({
+        success: false,
+        error: 'Current password is incorrect'
+      });
+    }
 
-    res.json({
-      success: true,
-      message: 'Logged out successfully'
-    });
-  } catch (error) {
-    logger.error('Logout error:', error);
-    res.status(400).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
+    // Hash new password
+    const new_password_hash = await bcrypt.hash(new_password, 12);
 
-// POST /api/auth/logout-all
-router.post('/logout-all', authenticateToken, async (req: AuthenticatedRequest, res) => {
-  try {
-    await authService.logoutAllDevices(req.user!.id);
-
-    logger.info(`User logged out from all devices: ${req.user?.email}`);
-
-    res.json({
-      success: true,
-      message: 'Logged out from all devices successfully'
-    });
-  } catch (error) {
-    logger.error('Logout all error:', error);
-    res.status(400).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-// POST /api/auth/forgot-password
-router.post('/forgot-password', [
-  body('email')
-    .isEmail()
-    .normalizeEmail()
-    .withMessage('Valid email is required'),
-  handleValidationErrors
-], async (req, res) => {
-  try {
-    const { email } = req.body;
-
-    await authService.requestPasswordReset(email);
-
-    res.json({
-      success: true,
-      message: 'Password reset instructions sent to your email'
-    });
-  } catch (error) {
-    logger.error('Forgot password error:', error);
-    res.status(400).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-// POST /api/auth/reset-password
-router.post('/reset-password', [
-  body('token')
-    .notEmpty()
-    .withMessage('Reset token is required'),
-  body('newPassword')
-    .isLength({ min: 8 })
-    .withMessage('Password must be at least 8 characters')
-    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
-    .withMessage('Password must contain uppercase, lowercase, number and special character'),
-  handleValidationErrors
-], async (req, res) => {
-  try {
-    const { token, newPassword } = req.body;
-
-    await authService.resetPassword(token, newPassword);
-
-    res.json({
-      success: true,
-      message: 'Password reset successfully'
-    });
-  } catch (error) {
-    logger.error('Reset password error:', error);
-    res.status(400).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-// POST /api/auth/change-password
-router.post('/change-password', authenticateToken, [
-  body('currentPassword')
-    .notEmpty()
-    .withMessage('Current password is required'),
-  body('newPassword')
-    .isLength({ min: 8 })
-    .withMessage('Password must be at least 8 characters')
-    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
-    .withMessage('Password must contain uppercase, lowercase, number and special character'),
-  handleValidationErrors
-], async (req: AuthenticatedRequest, res) => {
-  try {
-    const { currentPassword, newPassword } = req.body;
-
-    await authService.changePassword(req.user!.id, currentPassword, newPassword);
-
-    logger.info(`Password changed: ${req.user?.email}`);
+    // Update password
+    await db.query(
+      'UPDATE users SET password_hash = $1 WHERE id = $2',
+      [new_password_hash, req.user!.id]
+    );
 
     res.json({
       success: true,
       message: 'Password changed successfully'
     });
-  } catch (error) {
-    logger.error('Change password error:', error);
-    res.status(400).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
 
-// GET /api/auth/me (get current user)
-router.get('/me', authenticateToken, async (req: AuthenticatedRequest, res) => {
-  try {
-    res.json({
-      success: true,
-      data: {
-        user: req.user
-      }
-    });
   } catch (error) {
-    logger.error('Get user error:', error);
-    res.status(400).json({
+    console.error('Change password error:', error);
+    res.status(500).json({
       success: false,
-      error: error.message
+      error: 'Failed to change password'
     });
   }
 });

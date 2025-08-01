@@ -1,0 +1,453 @@
+// prisma/schema.prisma
+// Fi-Lis NPD Platform - Complete Database Schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum UserTier {
+  BRONZE
+  SILVER
+  GOLD
+  PLATINUM
+  DIAMOND
+}
+
+enum KYCStatus {
+  PENDING
+  PARTIAL
+  COMPLETE
+  REJECTED
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  FLAGGED
+}
+
+enum SubmissionStatus {
+  PENDING
+  PROCESSING
+  APPROVED
+  REJECTED
+  DUPLICATE
+}
+
+enum RewardStatus {
+  PENDING
+  APPROVED
+  PROCESSING
+  PAID
+  FAILED
+}
+
+enum ImageType {
+  FRONT
+  BACK
+  INGREDIENTS
+  NUTRITION
+  PACKAGING
+  RECEIPT
+  OTHER
+}
+
+enum TransactionType {
+  SUBMISSION_REWARD
+  BONUS_REWARD
+  TIER_BONUS
+  REFERRAL_BONUS
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum AIProvider {
+  AZURE
+  OPENAI
+  ANTHROPIC
+  GOOGLE
+}
+
+// ============================================================================
+// USER MANAGEMENT
+// ============================================================================
+
+model User {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email     String   @unique @db.VarChar(255)
+  phone     String   @unique @db.VarChar(15)
+  passwordHash String @map("password_hash") @db.VarChar(255)
+  fullName  String   @map("full_name") @db.VarChar(255)
+
+  // KYC Information
+  panNumber      String?    @map("pan_number") @db.VarChar(10)
+  aadhaarNumber  String?    @map("aadhaar_number") @db.VarChar(12) // Encrypted
+  panVerified    Boolean    @default(false) @map("pan_verified")
+  aadhaarVerified Boolean   @default(false) @map("aadhaar_verified")
+
+  // Payment Information
+  upiId            String? @map("upi_id") @db.VarChar(255)
+  bankAccountNumber String? @map("bank_account_number") @db.VarChar(20) // Encrypted
+  bankIfsc         String? @map("bank_ifsc") @db.VarChar(11)
+  bankHolderName   String? @map("bank_holder_name") @db.VarChar(255)
+
+  // User Metrics
+  totalEarnings      Decimal   @default(0) @map("total_earnings") @db.Decimal(10, 2)
+  totalSubmissions   Int       @default(0) @map("total_submissions")
+  approvedSubmissions Int      @default(0) @map("approved_submissions")
+  userTier           UserTier  @default(BRONZE) @map("user_tier")
+  qualityScore       Decimal   @default(0) @map("quality_score") @db.Decimal(3, 2)
+  streakCount        Int       @default(0) @map("streak_count")
+  lastSubmissionDate DateTime? @map("last_submission_date") @db.Date
+
+  // Status & Metadata
+  emailVerified Boolean    @default(false) @map("email_verified")
+  phoneVerified Boolean    @default(false) @map("phone_verified")
+  kycStatus     KYCStatus  @default(PENDING) @map("kyc_status")
+  isActive      Boolean    @default(true) @map("is_active")
+  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime   @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  npdSubmissions    NPDSubmission[]
+  productImages     ProductImage[]
+  rewardTransactions RewardTransaction[]
+  reviewedSubmissions NPDSubmission[] @relation("ReviewedBy")
+  discoveredProducts Product[] @relation("DiscoveredBy")
+  userSessions      UserSession[]
+
+  @@map("users")
+  @@index([email, phone])
+  @@index([kycStatus])
+  @@index([userTier])
+}
+
+model UserSession {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  sessionToken String   @unique @map("session_token") @db.VarChar(255)
+  deviceInfo   Json?    @map("device_info")
+  ipAddress    String?  @map("ip_address") @db.VarChar(45)
+  userAgent    String?  @map("user_agent") @db.Text
+  expiresAt    DateTime @map("expires_at") @db.Timestamptz
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_sessions")
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// ============================================================================
+// PRODUCTS (Enhanced Fi-Lis Schema + NPD)
+// ============================================================================
+
+model Product {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  
+  // Basic Product Info (Fi-Lis Compatible)
+  name        String  @db.VarChar(500)
+  productId   String? @map("product_id") @db.VarChar(100) // Original "Product Id"
+  brand       String  @db.VarChar(255)
+  description String? @map("description") @db.Text
+
+  // Enhanced Categorization
+  industry    String? @db.VarChar(100)
+  sector      String? @db.VarChar(100)
+  subSector   String? @map("sub_sector") @db.VarChar(100)
+  segment     String? @db.VarChar(100)
+  subSegment  String? @map("sub_segment") @db.VarChar(100)
+  category    String? @db.VarChar(100)
+
+  // Geographic & Market Data (From Fi-Lis)
+  continents        String? @db.VarChar(255)
+  country           String? @db.VarChar(100)
+  geo               String? @db.VarChar(255)
+  countryOfOrigin   String? @map("country_of_origin") @db.VarChar(100)
+  availabilityRegions Json?  @map("availability_regions")
+  isRegionalExclusive Boolean @default(false) @map("is_regional_exclusive")
+
+  // Product Identification
+  barcode     String? @db.VarChar(50)
+  productCode String? @map("product_code") @db.VarChar(100)
+  sku         String? @db.VarChar(100)
+
+  // Ingredients & Nutrition (From Fi-Lis)
+  ingredientsList         String? @map("ingredients_list") @db.Text
+  standardizedIngredients Json?   @map("standardized_ingredients")
+  nutritionalInfo         Json?   @map("nutritional_info")
+  calories                String? @db.VarChar(50)
+  claims                  String? @db.Text
+  flavour                 String? @db.VarChar(255)
+  allergenInfo           Json?   @map("allergen_info")
+  dietaryPreferences     Json?   @map("dietary_preferences")
+
+  // Commercial Information (From Fi-Lis)
+  price         String?  @db.VarChar(50)
+  volumeScale   String?  @map("volume_scale") @db.VarChar(100)
+  volumeSubscale String? @map("volume_subscale") @db.VarChar(100)
+  currency      String?  @default("INR") @db.VarChar(3)
+  mrp           Decimal? @db.Decimal(10, 2)
+  packSize      String?  @map("pack_size") @db.VarChar(50)
+
+  // Supply Chain (From Fi-Lis)
+  companyName             String? @map("company_name") @db.VarChar(255)
+  standardizedCompanyName String? @map("standardized_company_name") @db.VarChar(255)
+  manufacturer            String? @db.VarChar(255)
+  distributor             String? @db.VarChar(255)
+  retailer                String? @db.VarChar(255)
+
+  // Source & Links (From Fi-Lis)
+  productLink     String? @map("product_link") @db.Text
+  sourceName      String? @map("source_name") @db.VarChar(255)
+  websiteAddress  String? @map("website_address") @db.Text
+
+  // Dates (From Fi-Lis)
+  manufactureDate DateTime? @map("manufacture_date") @db.Date
+  expiryDate      DateTime? @map("expiry_date") @db.Date
+  year            String?   @db.VarChar(4)
+  dateOfEntry     DateTime? @map("date_of_entry") @db.Date
+  remarks         String?   @db.Text
+
+  // Platform Metadata
+  verificationStatus    VerificationStatus @default(PENDING) @map("verification_status")
+  aiConfidenceScore     Decimal           @default(0) @map("ai_confidence_score") @db.Decimal(3, 2)
+  submissionCount       Int               @default(0) @map("submission_count")
+  lastVerifiedAt        DateTime?         @map("last_verified_at") @db.Timestamptz
+
+  // NPD Specific
+  firstDiscoveredBy        String?  @map("first_discovered_by") @db.Uuid
+  discoveryDate            DateTime? @map("discovery_date") @db.Timestamptz
+  isNpd                    Boolean  @default(false) @map("is_npd")
+  regionalPopularityScore  Decimal  @default(0) @map("regional_popularity_score") @db.Decimal(3, 2)
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  discoveredBy    User?           @relation("DiscoveredBy", fields: [firstDiscoveredBy], references: [id])
+  productImages   ProductImage[]
+  npdSubmissions  NPDSubmission[]
+
+  @@map("products")
+  @@index([name, brand])
+  @@index([category, segment])
+  @@index([country, countryOfOrigin])
+  @@index([verificationStatus, aiConfidenceScore])
+  @@index([isNpd, discoveryDate])
+  @@index([barcode])
+  @@fulltext([name, brand, description, ingredientsList])
+}
+
+// ============================================================================
+// NPD SUBMISSIONS
+// ============================================================================
+
+model NPDSubmission {
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String @map("user_id") @db.Uuid
+  productId String? @map("product_id") @db.Uuid
+
+  // Submission Data
+  submittedProductName String @map("submitted_product_name") @db.VarChar(500)
+  submittedBrand       String @map("submitted_brand") @db.VarChar(255)
+  submittedCategory    String? @map("submitted_category") @db.VarChar(100)
+  rawSubmissionData    Json?  @map("raw_submission_data")
+
+  // Location & Context
+  submissionLocation Json?    @map("submission_location") // GPS coordinates, address
+  storeName          String?  @map("store_name") @db.VarChar(255)
+  storeType          String?  @map("store_type") @db.VarChar(100)
+  purchasePrice      Decimal? @map("purchase_price") @db.Decimal(10, 2)
+  purchaseDate       DateTime? @map("purchase_date") @db.Date
+
+  // Processing Status
+  status              SubmissionStatus @default(PENDING)
+  aiVerificationData  Json?           @map("ai_verification_data")
+  aiConfidenceScore   Decimal         @default(0) @map("ai_confidence_score") @db.Decimal(3, 2)
+  humanReviewNotes    String?         @map("human_review_notes") @db.Text
+
+  // Rewards
+  baseReward  Decimal @default(300) @map("base_reward") @db.Decimal(10, 2)
+  bonusReward Decimal @default(0) @map("bonus_reward") @db.Decimal(10, 2)
+  totalReward Decimal @default(300) @map("total_reward") @db.Decimal(10, 2)
+  rewardStatus RewardStatus @default(PENDING) @map("reward_status")
+
+  // Verification Trail
+  reviewedBy   String?   @map("reviewed_by") @db.Uuid
+  reviewedAt   DateTime? @map("reviewed_at") @db.Timestamptz
+  autoApproved Boolean   @default(false) @map("auto_approved")
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product      Product?        @relation(fields: [productId], references: [id])
+  reviewer     User?           @relation("ReviewedBy", fields: [reviewedBy], references: [id])
+  images       ProductImage[]
+  rewards      RewardTransaction[]
+
+  @@map("npd_submissions")
+  @@index([userId, status])
+  @@index([productId, status])
+  @@index([createdAt])
+  @@index([rewardStatus])
+}
+
+// ============================================================================
+// IMAGES & MEDIA
+// ============================================================================
+
+model ProductImage {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productId    String?   @map("product_id") @db.Uuid
+  submissionId String?   @map("submission_id") @db.Uuid
+
+  imageUrl     String    @map("image_url") @db.VarChar(1000)
+  imageType    ImageType @map("image_type")
+  fileSize     Int?      @map("file_size")
+  dimensions   String?   @db.VarChar(20) // "1920x1080"
+  
+  // AI Analysis
+  extractedText   Json?   @map("extracted_text")
+  detectedObjects Json?   @map("detected_objects")
+  qualityScore    Decimal @default(0) @map("quality_score") @db.Decimal(3, 2)
+
+  uploadedBy String   @map("uploaded_by") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  product    Product?      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  submission NPDSubmission? @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  uploader   User          @relation(fields: [uploadedBy], references: [id])
+
+  @@map("product_images")
+  @@index([productId, imageType])
+  @@index([submissionId])
+  @@index([uploadedBy])
+}
+
+// ============================================================================
+// AI & AUTOMATION
+// ============================================================================
+
+model AIModel {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name         String     @db.VarChar(100)
+  provider     AIProvider
+  modelId      String     @map("model_id") @db.VarChar(100)
+  apiEndpoint  String?    @map("api_endpoint") @db.VarChar(500)
+  isActive     Boolean    @default(true) @map("is_active")
+  costPerToken Decimal?   @map("cost_per_token") @db.Decimal(8, 6)
+  capabilities Json?      // text, vision, analysis
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("ai_models")
+  @@index([provider, isActive])
+}
+
+model ScrapingSource {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name           String    @db.VarChar(100)
+  baseUrl        String    @map("base_url") @db.VarChar(255)
+  searchEndpoint String?   @map("search_endpoint") @db.VarChar(500)
+  selectors      Json?     // CSS selectors for data extraction
+  rateLimit      Int       @default(10) @map("rate_limit") // requests per minute
+  isActive       Boolean   @default(true) @map("is_active")
+  lastScraped    DateTime? @map("last_scraped") @db.Timestamptz
+  successRate    Decimal   @default(0) @map("success_rate") @db.Decimal(3, 2)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("scraping_sources")
+  @@index([isActive])
+}
+
+// ============================================================================
+// REWARDS & PAYMENTS
+// ============================================================================
+
+model UserTierConfig {
+  tier              UserTier @id
+  minSubmissions    Int      @map("min_submissions")
+  minQualityScore   Decimal  @map("min_quality_score") @db.Decimal(3, 2)
+  minApprovalRate   Decimal  @map("min_approval_rate") @db.Decimal(3, 2)
+  rewardMultiplier  Decimal  @default(1.0) @map("reward_multiplier") @db.Decimal(3, 2)
+  bonusThreshold    Int?     @map("bonus_threshold") // submissions needed for tier bonus
+  tierBonus         Decimal  @default(0) @map("tier_bonus") @db.Decimal(8, 2)
+  benefits          Json?
+
+  @@map("user_tier_configs")
+}
+
+model RewardTransaction {
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String        @map("user_id") @db.Uuid
+  submissionId     String?       @map("submission_id") @db.Uuid
+
+  amount           Decimal       @db.Decimal(10, 2)
+  transactionType  TransactionType @map("transaction_type")
+  paymentMethod    String?       @map("payment_method") @db.VarChar(50) // upi, bank_transfer
+  paymentReference String?       @map("payment_reference") @db.VarChar(255)
+
+  status          PaymentStatus @default(PENDING)
+  processedAt     DateTime?     @map("processed_at") @db.Timestamptz
+  failureReason   String?       @map("failure_reason") @db.Text
+
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  submission NPDSubmission? @relation(fields: [submissionId], references: [id])
+
+  @@map("reward_transactions")
+  @@index([userId, status])
+  @@index([paymentReference])
+  @@index([createdAt])
+}
+
+// ============================================================================
+// ANALYTICS & REPORTING
+// ============================================================================
+
+model SubmissionAnalytics {
+  date                 DateTime @id @db.Date
+  totalSubmissions     Int      @default(0) @map("total_submissions")
+  approvedSubmissions  Int      @default(0) @map("approved_submissions")
+  rejectedSubmissions  Int      @default(0) @map("rejected_submissions")
+  totalRewardsPaid     Decimal  @default(0) @map("total_rewards_paid") @db.Decimal(12, 2)
+  uniqueContributors   Int      @default(0) @map("unique_contributors")
+  newProductsAdded     Int      @default(0) @map("new_products_added")
+  avgProcessingTime    String?  @map("avg_processing_time") // Store as interval string
+  
+  @@map("submission_analytics")
+}
+
+model SystemConfig {
+  key       String   @id @db.VarChar(100)
+  value     Json
+  updatedBy String?  @map("updated_by") @db.Uuid
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("system_config")
+}
