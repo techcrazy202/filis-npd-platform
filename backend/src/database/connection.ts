@@ -16,7 +16,7 @@ interface DatabaseConfig {
   connectionTimeoutMillis?: number;
 }
 
-class DatabaseConnection {
+export class DatabaseConnection {
   private pool: Pool;
   private static instance: DatabaseConnection;
 
@@ -59,11 +59,11 @@ class DatabaseConnection {
   }
 
   // Execute a query with parameters
-  async query<T = any>(text: string, params?: any[]): Promise<QueryResult<T>> {
+  async query<T extends Record<string, any>>(text: string, params?: any[]): Promise<QueryResult<T>> {
     const start = Date.now();
     
     try {
-      const result = await this.pool.query(text, params);
+      const result = await this.pool.query<T>(text, params);
       const duration = Date.now() - start;
       
       console.log('Query executed:', {
@@ -73,23 +73,23 @@ class DatabaseConnection {
       });
       
       return result;
-    } catch (error) {
+    } catch (error: unknown) {
       const duration = Date.now() - start;
       console.error('Query failed:', {
         text: text.slice(0, 100) + (text.length > 100 ? '...' : ''),
         duration: `${duration}ms`,
-        error: error.message
+        error: (error as Error).message
       });
-      throw new DatabaseError(error.message, error.code);
+      throw new DatabaseError((error as Error).message, (error as any).code || 'UNKNOWN');
     }
   }
 
   // Execute a query with a specific client (for transactions)
-  async queryWithClient<T = any>(client: PoolClient, text: string, params?: any[]): Promise<QueryResult<T>> {
+  async queryWithClient<T extends Record<string, any>>(client: PoolClient, text: string, params?: any[]): Promise<QueryResult<T>> {
     const start = Date.now();
     
     try {
-      const result = await client.query(text, params);
+      const result = await client.query<T>(text, params);
       const duration = Date.now() - start;
       
       console.log('Transaction query executed:', {
@@ -99,14 +99,14 @@ class DatabaseConnection {
       });
       
       return result;
-    } catch (error) {
+    } catch (error: unknown) {
       const duration = Date.now() - start;
       console.error('Transaction query failed:', {
         text: text.slice(0, 100) + (text.length > 100 ? '...' : ''),
         duration: `${duration}ms`,
-        error: error.message
+        error: (error as Error).message
       });
-      throw new DatabaseError(error.message, error.code);
+      throw new DatabaseError((error as Error).message, (error as any).code || 'UNKNOWN');
     }
   }
 
@@ -115,7 +115,7 @@ class DatabaseConnection {
     try {
       return await this.pool.connect();
     } catch (error) {
-      throw new DatabaseError('Failed to get database client', error.code);
+      throw new DatabaseError('Failed to get database client', error instanceof Error ? (error as any).code : 'UNKNOWN');
     }
   }
 

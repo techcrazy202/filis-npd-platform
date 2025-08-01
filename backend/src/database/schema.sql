@@ -436,12 +436,12 @@ CREATE INDEX IF NOT EXISTS idx_reward_transactions_created_at ON reward_transact
 
 -- Function to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $
+RETURNS TRIGGER AS $$
 BEGIN
     NEW.updated_at = NOW();
     RETURN NEW;
 END;
-$ language 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 -- Add updated_at triggers
 DROP TRIGGER IF EXISTS update_users_updated_at ON users;
@@ -461,15 +461,15 @@ CREATE TRIGGER update_npd_submissions_updated_at
 
 -- Function to calculate user quality score
 CREATE OR REPLACE FUNCTION calculate_user_quality_score(user_uuid UUID)
-RETURNS DECIMAL(3,2) AS $
+RETURNS DECIMAL(3,2) AS $$
 DECLARE
     quality_score DECIMAL(3,2);
 BEGIN
-    SELECT 
+    SELECT
         ROUND(
-            CASE 
+            CASE
                 WHEN COUNT(*) = 0 THEN 0
-                ELSE 
+                ELSE
                     (COUNT(CASE WHEN status = 'approved' THEN 1 END)::DECIMAL / COUNT(*)::DECIMAL) * 10
             END, 2
         )
@@ -480,21 +480,21 @@ BEGIN
     
     RETURN COALESCE(quality_score, 0);
 END;
-$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 -- Function to update user tier based on performance
 CREATE OR REPLACE FUNCTION update_user_tier(user_uuid UUID)
-RETURNS user_tier AS $
+RETURNS user_tier AS $$
 DECLARE
     new_tier user_tier;
     user_stats RECORD;
 BEGIN
     -- Get user statistics
-    SELECT 
+    SELECT
         total_submissions,
         approved_submissions,
         calculate_user_quality_score(user_uuid) as quality_score,
-        CASE 
+        CASE
             WHEN total_submissions = 0 THEN 0
             ELSE (approved_submissions::DECIMAL / total_submissions::DECIMAL) * 100
         END as approval_rate
@@ -515,13 +515,13 @@ BEGIN
     new_tier := COALESCE(new_tier, 'bronze');
     
     -- Update user tier
-    UPDATE users 
+    UPDATE users
     SET user_tier = new_tier, quality_score = user_stats.quality_score
     WHERE id = user_uuid;
     
     RETURN new_tier;
 END;
-$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 -- ============================================================================
 -- VIEWS FOR COMMON QUERIES
@@ -599,7 +599,7 @@ ALTER TABLE reward_transactions ADD CONSTRAINT check_amount_positive
 -- COMPLETION MESSAGE
 -- ============================================================================
 
-DO $
+DO $$
 BEGIN
     RAISE NOTICE '✅ Fi-Lis NPD Platform database schema initialized successfully!';
     RAISE NOTICE '📊 Tables created: users, products, npd_submissions, product_images, user_sessions, ai_models, scraping_sources, user_tier_configs, reward_transactions, submission_analytics, system_config';
@@ -608,4 +608,4 @@ BEGIN
     RAISE NOTICE '📈 Views created for analytics and reporting';
     RAISE NOTICE '🔒 Security constraints configured';
     RAISE NOTICE '🚀 Ready to import 275K+ product records!';
-END $;
+END $$;
