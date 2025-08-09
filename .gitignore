@@ -1,1 +1,26 @@
-node_modules
+# Dependencies
+/node_modules
+/backend/node_modules
+/frontend/node_modules
+
+# Build artifacts
+/frontend/.next/
+/backend/dist/
+
+# Log files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+backend/.env
+
+# Other
+filis-npd-platform.zip
+CleanCodeExport.txt
+code_review_snippets.txt
